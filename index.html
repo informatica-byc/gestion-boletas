@@ -1612,7 +1612,7 @@ async function saveFt(){
 
 async function confDelFt(id){
   document.getElementById('confMsg').textContent='¿Eliminar este tipo? Las boletas existentes no se eliminarán.';
-  document.getElementById('confOk').onclick=()=>{S.ftypes=S.ftypes.filter(x=>x.id!==id);saveAll();buildDynNav();closeMod('confMod');render();toast('🗑️ Eliminado')};
+  document.getElementById('confOk').onclick=async()=>{await fbDelete('formtypes',id);S.ftypes=S.ftypes.filter(x=>x.id!==id);buildDynNav();closeMod('confMod');render();toast('🗑️ Tipo eliminado');};
   openMod('confMod');
 }
 
@@ -1796,7 +1796,7 @@ async function saveUser(){
     }
 
     // Guardar en Firestore
-    const u = {id: docId, name, username: un, email: em, role, _tmpPw: !id ? pw : undefined};
+    const u = {id: docId, name, username: un, email: em, role, _tmpPw: !id ? btoa(pw) : undefined};
     await fbSet('users', docId, u);
     const idx = S.users.findIndex(x => x.id === docId);
     if(idx >= 0) S.users[idx] = u; else S.users.push(u);
@@ -1832,7 +1832,7 @@ async function confDelUsr(id){
         const r1 = await fetch(
           'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + firebaseConfig.apiKey,
           { method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({email, password: tmpPw, returnSecureToken: true}) }
+            body: JSON.stringify({email, password: (()=>{try{return atob(tmpPw)}catch(e){return tmpPw}})(), returnSecureToken: true}) }
         );
         const d1 = await r1.json();
 
@@ -1888,7 +1888,7 @@ async function confDelUsr(id){
 
 function visibleForms(list) {
   if (!S.user || S.user.role === 'admin') return list;
-  return list.filter(f => f.createdBy === S.user.id || !f.createdBy);
+  return list.filter(f => f.createdBy === S.user.uid || f.createdBy === S.user.id || !f.createdBy);
 }
 
 async function doSave(f){
@@ -1909,7 +1909,7 @@ function cancelEd(){ S.editForm=null; render(); }
 function editById(id){ const f=S.forms.find(x=>x.id===id); if(!f)return; S.editForm={...f,weights:f.weights?f.weights.map(r=>[...r]):undefined}; render(); }
 async function confDel(id){
   document.getElementById('confMsg').textContent='¿Eliminar esta boleta permanentemente?';
-  document.getElementById('confOk').onclick=()=>{S.forms=S.forms.filter(x=>x.id!==id);saveAll();closeMod('confMod');render();toast('🗑️ Eliminado')};
+  document.getElementById('confOk').onclick=async()=>{await fbDelete('forms',id);S.forms=S.forms.filter(x=>x.id!==id);closeMod('confMod');render();toast('🗑️ Boleta eliminada');};
   openMod('confMod');
 }
 function printById(id){ const f=S.forms.find(x=>x.id===id); if(!f)return; S.viewForm=f; render(); setTimeout(()=>window.print(),350); }
