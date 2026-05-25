@@ -1813,51 +1813,69 @@ async function saveUser(){
 }
 
 async function confDelUsr(id){
-  document.getElementById('confMsg').textContent = '¿Eliminar este usuario? No se puede deshacer.';
+  document.getElementById('confMsg').textContent = '¿Eliminar este usuario permanentemente?';
   document.getElementById('confOk').onclick = async () => {
     const user = S.users.find(x => x.id === id);
-    let authDeleted = false;
+    const btn  = document.getElementById('confOk');
+    if(btn){ btn.textContent='Eliminando...'; btn.disabled=true; }
 
-    // Intentar eliminar de Auth usando contraseña temporal guardada
-    if(user && user._tmpPw && user.email) {
+    let authDeleted = false;
+    let authError   = '';
+
+    // ── Paso 1: Eliminar de Firebase Authentication ──
+    const email = user?.email;
+    const tmpPw = user?._tmpPw;
+
+    if(email && tmpPw) {
       try {
-        // 1. Sign in as the user to get their idToken
+        // Iniciar sesión como ese usuario para obtener su token
         const r1 = await fetch(
           'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + firebaseConfig.apiKey,
           { method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({email:user.email, password:user._tmpPw, returnSecureToken:true}) }
+            body: JSON.stringify({email, password: tmpPw, returnSecureToken: true}) }
         );
         const d1 = await r1.json();
-        if(d1.idToken) {
-          // 2. Delete using their own token
+
+        if(d1.error) {
+          authError = 'Login temporal falló: ' + d1.error.message;
+        } else if(d1.idToken) {
+          // Eliminar con su propio token
           const r2 = await fetch(
             'https://identitytoolkit.googleapis.com/v1/accounts:delete?key=' + firebaseConfig.apiKey,
             { method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({idToken: d1.idToken}) }
           );
           const d2 = await r2.json();
-          if(!d2.error) authDeleted = true;
+          if(d2.error) {
+            authError = 'Delete Auth falló: ' + d2.error.message;
+          } else {
+            authDeleted = true;
+          }
         }
-      } catch(e){ console.warn('Auth delete:', e.message); }
+      } catch(e) {
+        authError = 'Error de red: ' + e.message;
+      }
+    } else {
+      authError = !email ? 'Sin email' : 'Sin contraseña temporal (_tmpPw vacío)';
     }
 
-    // Eliminar de Firestore
+    // ── Paso 2: Eliminar de Firestore siempre ──
     await fbDelete('users', id);
     S.users = S.users.filter(x => x.id !== id);
+
+    if(btn){ btn.textContent='Confirmar'; btn.disabled=false; }
     closeMod('confMod');
     render();
 
     if(authDeleted) {
-      toast('🗑️ Usuario eliminado de BD y Authentication.');
+      toast('🗑️ Usuario eliminado de BD y Authentication ✅');
     } else {
-      toast('🗑️ Usuario eliminado de BD.');
-      if(!user?._tmpPw) {
-        setTimeout(() => {
-          if(confirm('Para eliminar de Authentication:\n' +
-            'Firebase Console → Authentication → Users\nBuscar: ' + (user?.email||id) + '\n\n¿Abrir ahora?')) {
-            window.open('https://console.firebase.google.com/project/gestion-de-boletas---byc-aafe3/authentication/users','_blank');
-          }
-        }, 400);
+      // Mostrar qué falló y abrir Auth console
+      const msg = '⚠️ Eliminado de BD pero NO de Authentication.\n\nMotivo: ' + authError +
+        '\n\nElimínelo manualmente:\nFirebase Console → Authentication → Users\nEmail: ' + (email||id) +
+        '\n\n¿Abrir Firebase Console ahora?';
+      if(confirm(msg)) {
+        window.open('https://console.firebase.google.com/project/gestion-de-boletas---byc-aafe3/authentication/users', '_blank');
       }
     }
   };
