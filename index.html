@@ -757,7 +757,9 @@ async function fbSet(col, id, data) {
     return true;
   } catch(e) {
     console.error('fbSet error:', col, id, e.code, e.message);
-    return e.code || 'unknown-error';
+    // Show exact error to user
+    toast('❌ Firestore [' + col + ']: ' + (e.code||'') + ' — ' + (e.message||'').substring(0,80));
+    return false;
   }
 }
 
@@ -977,7 +979,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (firebaseUser && !S.user && !_isLoggingOut) {
         const users = await fbGetAll('users', [['email','==', firebaseUser.email]]);
         if (users.length) {
-          S.user = { ...users[0], uid: firebaseUser.uid, id: firebaseUser.uid };
+          S.user = { ...users[0], uid: firebaseUser.uid };
           await loadAllData();
           initApp();
         }
@@ -1895,9 +1897,7 @@ function visibleForms(list) {
 }
 
 async function doSave(f){
-  // Usar siempre uid (Firebase Auth UID) para consistencia con las queries de carga
-  const userKey = S.user?.uid || S.user?.id || '';
-  if(!f.createdBy) f.createdBy = userKey;
+  if(!f.createdBy) f.createdBy = S.user?.uid || S.user?.id || '';
   if(!f.createdAt) f.createdAt = new Date().toISOString();
   f.updatedAt = new Date().toISOString();
   // Clean undefined/null values that Firestore rejects
@@ -1915,7 +1915,7 @@ async function doSave(f){
   const fClean = cleanObj({...f});
   // Save to Firestore
   const ok = await fbSet('forms', fClean.id, fClean);
-  if(ok !== true){ toast('❌ Error al guardar: ' + (ok||'sin conexión') + '. Revise la consola (F12).'); return; }
+  if(!ok){ return; }  // fbSet already showed the error
   f = fClean;
   // Update local state
   const idx=S.forms.findIndex(x=>x.id===f.id);
