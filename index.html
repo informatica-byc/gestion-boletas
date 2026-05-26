@@ -1409,6 +1409,9 @@ async function savePesas() {
   const pe=document.getElementById('pPE'); if(pe)f.pesasPorEspacio=parseInt(pe.value)||1;
   const rp=document.getElementById('pRp'); if(rp)f.rebajoPorc=parseFloat(rp.value)||0;
   const rc=document.getElementById('pRc'); if(rc)f.rebajoCajas=parseFloat(rc.value)||0;
+  // Trigger recalculation to ensure computed fields are up to date
+  rP();
+  // rP() updates S.editForm with pesoBoleta, promedio, pesoTotalCarga, etc.
   doSave(f);
 }
 
@@ -1559,10 +1562,10 @@ function renderPesasV(pc,f){
         <div class="ifield"><label>Lugar:</label><span class="ro">${esc(f.finca||'')}</span></div>
         <div class="ifield"><label>Cantidad Entregada:</label><span class="ro">${esc(f.cantidadEntregada||'')}</span></div>
       </div>
-      ${(f.cuadrilla||f.transportista)?`<div class="irow">
+      <div class="irow">
         <div class="ifield"><label>Cuadrilla:</label><span class="ro">${esc(f.cuadrilla||'')}</span></div>
         <div class="ifield"><label>Transportista:</label><span class="ro">${esc(f.transportista||'')}</span></div>
-      </div>`:''}
+      </div>
     </div>
     <div class="bgrid-wrap">
       <div class="wgrid"><table class="wtbl">
@@ -1996,7 +1999,23 @@ async function doSave(f){
   toast('✅ Boleta guardada');
 }
 function cancelEd(){ S.editForm=null; render(); }
-function editById(id){ const f=S.forms.find(x=>x.id===id); if(!f)return; S.editForm={...f,weights:f.weights?f.weights.map(r=>[...r]):undefined}; render(); }
+function editById(id){
+  const f = S.forms.find(x=>x.id===id);
+  if(!f) return;
+  // Restore flat weights from Firestore back to nested array
+  let weights = f.weights;
+  if(!weights) {
+    weights = Array(15).fill(null).map(()=>Array(5).fill(''));
+  } else if(!Array.isArray(weights)) {
+    const arr = Array(15).fill(null).map(()=>Array(5).fill(''));
+    Object.entries(weights).forEach(([k,v])=>{ const m=k.match(/^r(\d+)c(\d+)$/); if(m) arr[+m[1]][+m[2]]=v||''; });
+    weights = arr;
+  } else {
+    weights = weights.map(r=>Array.isArray(r)?[...r]:Array(5).fill(''));
+  }
+  S.editForm = {...f, weights};
+  render();
+}
 async function confDel(id){
   document.getElementById('confMsg').textContent='¿Eliminar esta boleta permanentemente?';
   document.getElementById('confOk').onclick=async()=>{await fbDelete('forms',id);S.forms=S.forms.filter(x=>x.id!==id);closeMod('confMod');render();toast('🗑️ Boleta eliminada');};
