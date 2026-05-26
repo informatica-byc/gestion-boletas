@@ -1333,11 +1333,15 @@ function renderPesasEd(pc, f) {
 function recalcConsec(){
   const ft = document.getElementById('pft')?.value || 'Maquila';
   S.editForm.fieldType = ft;
-  const newCon = consec('pesas', ft);
-  S.editForm.consecutive = newCon;
-  // Update the displayed consecutive number
-  const bnumEl = document.querySelector('.bol-nb .bnum');
-  if(bnumEl) bnumEl.innerHTML = newCon + ' <span class="bsc">SC</span>';
+  // Solo reasignar consecutivo si es boleta NUEVA (no editando una existente guardada en Firebase)
+  const isEditing = S.forms.some(x => x.id === S.editForm?.id);
+  if(!isEditing) {
+    const newCon = consec('pesas', ft);
+    S.editForm.consecutive = newCon;
+    // Update the displayed consecutive number
+    const bnumEl = document.querySelector('.bol-nb .bnum');
+    if(bnumEl) bnumEl.innerHTML = newCon + ' <span class="bsc">SC</span>';
+  }
 }
 
 function rP() {
@@ -2013,6 +2017,7 @@ function editById(id){
   } else {
     weights = weights.map(r=>Array.isArray(r)?[...r]:Array(5).fill(''));
   }
+  S.viewForm = null; // Limpiar vista antes de abrir editor
   S.editForm = {...f, weights};
   render();
 }
