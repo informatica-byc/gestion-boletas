@@ -372,11 +372,39 @@ body{font-family:'Montserrat',sans-serif;background:#edf2ed;color:var(--dark);mi
 
 /* ── PRINT ── */
 @media print{
-  .sidebar,.topbar,.bol-actions,.no-print,#toast,.calc-bar{display:none!important}
-  .main{margin-left:0!important;width:100vw!important}
-  .pcontent{padding:0!important}
-  .boleta,.maq-bol,.cbol{box-shadow:none!important;border:1.5px solid #999!important}
+  .sidebar,.topbar,.bol-actions,.no-print,#toast,.calc-bar,
+  #sbOverlay,.view-actions,#fbLoading{display:none!important}
+  .main{margin-left:0!important;width:100%!important}
+  .pcontent{padding:4px!important}
   body{background:#fff!important}
+  @page{size:letter portrait;margin:6mm 8mm}
+  .boleta,.maq-bol,.cbol{
+    box-shadow:none!important;border:1px solid #888!important;
+    font-size:11px;
+  }
+  .bol-hdr{padding:5px 10px!important}
+  .bol-logo img{height:34px!important}
+  .bnum{font-size:16px!important}
+  .bol-info{padding:5px 10px!important}
+  .irow{margin-bottom:2px!important}
+  .ifield label{font-size:10px!important}
+  .ifield .ro,.ifield input{font-size:13px!important}
+  .wgrid{padding:5px 10px!important}
+  .wtbl th{padding:3px 4px!important;font-size:9px!important}
+  .wtbl td{padding:2px 1px!important}
+  .winput{font-size:11px!important;padding:1px!important}
+  .tot{font-size:12px!important}
+  .contab{padding:5px 8px!important}
+  .ctab-hdr{padding:4px 6px!important;font-size:9px!important;margin:-5px -8px 6px!important}
+  .cf{margin-bottom:4px!important}
+  .cf label{font-size:8px!important}
+  .cf .cv{font-size:12px!important;min-height:14px!important}
+  .cf input{font-size:12px!important}
+  .bol-obs{padding:5px 10px!important}
+  .bol-obs label{font-size:10px!important}
+  .bol-foot{padding:6px 16px!important}
+  .sf label{font-size:9px!important;margin-top:4px!important}
+  .rl{font-size:10px!important}
 }
 
 /* ── RESPONSIVE ── */
@@ -1508,24 +1536,41 @@ function renderPesasV(pc,f){
   let gr='';
   for(let r=0;r<15;r++){
     let cs='',rt=0;
-    for(let col=0;col<5;col++){const v=w[r]?.[col]||'';cs+=`<td style="font-family:'Crimson Pro',serif;font-size:15px;padding:3px 1px">${v}</td>`;rt+=parseFloat(v)||0;}
+    for(let col=0;col<5;col++){const v=w[r]?.[col]||'';cs+=`<td style="border:1px solid #ccc;padding:3px 2px;text-align:center;font-family:'Crimson Pro',serif;font-size:14px">${v}</td>`;rt+=parseFloat(v)||0;}
     gr+=`<tr><td class="rl">${r+1}</td>${cs}<td class="tot">${rt>0?rt:''}</td></tr>`;
   }
   const rp=parseFloat(f.rebajoPorc)||0;
   const rc=parseFloat(f.rebajoCajas)||0;
   const rebajoLbl = rp>0 ? `Rebajo (${rp}%)` : rc>0 ? `Rebajo Cajas (${rc})` : 'Rebajo';
-  const cuadRow = (f.cuadrilla||f.transportista) ? `<div class="irow">${f.cuadrilla?`<div class="ifield"><label>Cuadrilla:</label><span class="ro">${esc(f.cuadrilla)}</span></div>`:''} ${f.transportista?`<div class="ifield"><label>Transportista:</label><span class="ro">${esc(f.transportista)}</span></div>`:''}</div>` : '';
+
   pc.innerHTML = viewActions(f.id) + `
   <div class="bol-wrap"><div class="boleta" id="bPrint">
-    <div class="bol-hdr"><div class="bol-logo"><img src="${LOGO}" style="height:50px;border-radius:4px"/></div><div class="bol-tc"><div class="bol-td">CONTROL PESAS ${esc((f.subtype||'').toUpperCase())}</div></div><div class="bol-nb"><div class="bno">Nº</div><div class="bnum">${f.consecutive} <span class="bsc">SC</span></div></div></div>
+    <div class="bol-hdr">
+      <div class="bol-logo"><img src="${LOGO}" style="height:46px;border-radius:4px"/></div>
+      <div class="bol-tc"><div class="bol-td">CONTROL PESAS ${esc((f.subtype||'').toUpperCase())}</div></div>
+      <div class="bol-nb"><div class="bno">Nº</div><div class="bnum">${f.consecutive} <span class="bsc">SC</span></div></div>
+    </div>
     <div class="bol-info">
-      <div class="irow"><div class="ifield"><label>${esc(f.fieldType||'Maquila')}:</label><span class="ro">${esc(f.maquila||'')}</span></div><div class="ifield"><label>Fecha:</label><span class="ro">${esc(f.date||'')}</span></div></div>
-      <div class="irow"><div class="ifield"><label>Lugar:</label><span class="ro">${esc(f.finca||'')}</span></div><div class="ifield"><label>Cantidad Entregada:</label><span class="ro">${esc(f.cantidadEntregada||'')}</span></div></div>
-      ${cuadRow}
+      <div class="irow">
+        <div class="ifield"><label>${esc(f.fieldType||'Maquila')}:</label><span class="ro">${esc(f.maquila||'')}</span></div>
+        <div class="ifield"><label>Fecha:</label><span class="ro">${esc(f.date||'')}</span></div>
+      </div>
+      <div class="irow">
+        <div class="ifield"><label>Lugar:</label><span class="ro">${esc(f.finca||'')}</span></div>
+        <div class="ifield"><label>Cantidad Entregada:</label><span class="ro">${esc(f.cantidadEntregada||'')}</span></div>
+      </div>
+      ${(f.cuadrilla||f.transportista)?`<div class="irow">
+        <div class="ifield"><label>Cuadrilla:</label><span class="ro">${esc(f.cuadrilla||'')}</span></div>
+        <div class="ifield"><label>Transportista:</label><span class="ro">${esc(f.transportista||'')}</span></div>
+      </div>`:''}
     </div>
     <div class="bgrid-wrap">
-      <div class="wgrid"><table class="wtbl"><thead><tr><th>#</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>T</th></tr></thead><tbody>${gr}</tbody></table></div>
-      <div class="contab"><div class="ctab-hdr">USO CONTABILIDAD</div>
+      <div class="wgrid"><table class="wtbl">
+        <thead><tr><th>#</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>T</th></tr></thead>
+        <tbody>${gr}</tbody>
+      </table></div>
+      <div class="contab">
+        <div class="ctab-hdr">USO CONTABILIDAD</div>
         <div class="cf"><label>Pesas por Espacio</label><div class="cv">${f.pesasPorEspacio||1}</div></div>
         <div class="cf"><label>Peso Boleta (kg)</label><div class="cv">${f.pesoBoleta||''}</div></div>
         <div class="cf"><label>Promedio (kg)</label><div class="cv">${f.promedio||''}</div></div>
