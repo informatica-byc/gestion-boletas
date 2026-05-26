@@ -1200,8 +1200,17 @@ function renderEditor(pc) {
 
 // PESAS
 function renderPesasEd(pc, f) {
-  if (!f.weights) f.weights = Array(15).fill(null).map(()=>Array(5).fill(''));
-  // Extend to 15 rows if needed
+  // Restore flat weights from Firestore back to nested array
+  if(!f.weights) {
+    f.weights = Array(15).fill(null).map(()=>Array(5).fill(''));
+  } else if(!Array.isArray(f.weights)) {
+    const arr = Array(15).fill(null).map(()=>Array(5).fill(''));
+    Object.entries(f.weights).forEach(([k,v])=>{
+      const m = k.match(/^r(\d+)c(\d+)$/);
+      if(m) arr[+m[1]][+m[2]] = v||'';
+    });
+    f.weights = arr;
+  }
   while(f.weights.length < 15) f.weights.push(Array(5).fill(''));
   if (!f.fieldType) f.fieldType = 'Maquila';
   const sopts = PESAS_SUB.map(t=>`<option${t===f.subtype?' selected':''}>${t}</option>`).join('');
@@ -1490,7 +1499,12 @@ function renderView(pc){
   else renderCustomV(pc,f);
 }
 function renderPesasV(pc,f){
-  const w=f.weights||Array(15).fill(null).map(()=>Array(5).fill(''));
+  let w = f.weights || Array(15).fill(null).map(()=>Array(5).fill(''));
+  if(!Array.isArray(w)) {
+    const arr = Array(15).fill(null).map(()=>Array(5).fill(''));
+    Object.entries(w).forEach(([k,v])=>{ const m=k.match(/^r(\d+)c(\d+)$/); if(m) arr[+m[1]][+m[2]]=v||''; });
+    w = arr;
+  }
   let gr='';
   for(let r=0;r<15;r++){
     let cs='',rt=0;
@@ -1912,11 +1926,23 @@ async function doSave(f){
     }
     return obj;
   };
-  const fClean = cleanObj({...f});
-  // Save to Firestore
+  const fClean = {...f};
+  // Flatten nested weights array — Firestore doesn't support nested arrays
+  if(Array.isArray(fClean.weights)) {
+    const wf = {};
+    fClean.weights.forEach((row, r) => {
+      (Array.isArray(row) ? row : []).forEach((v, col) => {
+        wf['r' + r + 'c' + col] = (v === undefined || v === null) ? '' : String(v);
+      });
+    });
+    fClean.weights = wf;
+  }
+  // Remove undefined values
+  Object.keys(fClean).forEach(k => { if(fClean[k] === undefined) delete fClean[k]; });
   const ok = await fbSet('forms', fClean.id, fClean);
-  if(!ok){ return; }  // fbSet already showed the error
-  f = fClean;
+  if(!ok){ return; }
+  // Restore weights as array in memory
+  f.weights = f.weights; // keep original array in local state
   // Update local state
   const idx=S.forms.findIndex(x=>x.id===f.id);
   if(idx>=0)S.forms[idx]=f; else S.forms.unshift(f);
