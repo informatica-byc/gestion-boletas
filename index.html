@@ -755,7 +755,10 @@ async function fbSet(col, id, data) {
   try {
     await db.collection(col).doc(id).set(data, {merge: true});
     return true;
-  } catch(e) { console.error('fbSet', e); return false; }
+  } catch(e) {
+    console.error('fbSet error:', col, id, e.code, e.message);
+    return false;
+  }
 }
 
 async function fbDelete(col, id) {
@@ -1267,7 +1270,7 @@ function renderPesasEd(pc, f) {
             <button type="button" id="pEnClear" onclick="clearSigField('pEn')" title="Limpiar firma" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:16px;padding:2px 4px;line-height:1;flex-shrink:0;margin-bottom:2px;display:${f.entregadoPor?'block':'none'}">✕</button>
           </div>
           <input type="hidden" id="pEn" value="${esc(f.entregadoPor||'')}"/>
-          <label>Entregado por:</label>
+          <label>Realizado por:</label>
         </div>
         <div class="sf">
           <div style="display:flex;align-items:flex-end;gap:4px">
@@ -1518,7 +1521,7 @@ function renderPesasV(pc,f){
     </div>
     <div class="bol-obs"><label>Observaciones:</label><span class="ro">${esc(f.obs||'')}</span></div>
     <div class="bol-foot">
-      <div class="sf"><span class="ro">${esc(f.entregadoPor||'')}</span><label>Entregado por:</label></div>
+      <div class="sf"><span class="ro">${esc(f.entregadoPor||'')}</span><label>Realizado por:</label></div>
       <div class="sf"><span class="ro">${esc(f.recibidoPor||'')}</span><label>Recibido por:</label></div>
     </div>
   </div></div>`;
@@ -1895,9 +1898,23 @@ async function doSave(f){
   if(!f.createdBy) f.createdBy = S.user?.uid || S.user?.id || '';
   if(!f.createdAt) f.createdAt = new Date().toISOString();
   f.updatedAt = new Date().toISOString();
+  // Clean undefined/null values that Firestore rejects
+  const cleanObj = (obj) => {
+    if(Array.isArray(obj)) return obj.map(item => item === undefined || item === null ? '' : (typeof item === 'object' ? cleanObj(item) : item));
+    if(typeof obj === 'object' && obj !== null) {
+      const clean = {};
+      for(const [k,v] of Object.entries(obj)) {
+        if(v !== undefined) clean[k] = (typeof v === 'object' && v !== null) ? cleanObj(v) : v;
+      }
+      return clean;
+    }
+    return obj;
+  };
+  const fClean = cleanObj({...f});
   // Save to Firestore
-  const ok = await fbSet('forms', f.id, f);
+  const ok = await fbSet('forms', fClean.id, fClean);
   if(!ok){ toast('❌ Error al guardar. Verifique la conexión.'); return; }
+  f = fClean;
   // Update local state
   const idx=S.forms.findIndex(x=>x.id===f.id);
   if(idx>=0)S.forms[idx]=f; else S.forms.unshift(f);
@@ -2030,7 +2047,7 @@ function buildPrintHtml(f){
       </div>
       <div style="padding:8px 0;font-size:13px;border-top:1px solid #d4e8da;margin-top:0"><b>Observaciones:</b> ${f.obs||''}</div>
       <div style="display:flex;justify-content:space-between;padding-top:12px;margin-top:4px;border-top:1px solid #d4e8da">
-        <div style="text-align:center"><div style="font-family:serif;font-size:14px;border-bottom:1px solid #aaa;min-width:180px;padding-bottom:4px">${f.entregadoPor||''}</div><div style="font-size:10px;font-weight:700;color:#555;margin-top:4px">Entregado por:</div></div>
+        <div style="text-align:center"><div style="font-family:serif;font-size:14px;border-bottom:1px solid #aaa;min-width:180px;padding-bottom:4px">${f.entregadoPor||''}</div><div style="font-size:10px;font-weight:700;color:#555;margin-top:4px">Realizado por:</div></div>
         <div style="text-align:center"><div style="font-family:serif;font-size:14px;border-bottom:1px solid #aaa;min-width:120px;padding-bottom:4px">${f.recibidoPor||''}</div><div style="font-size:10px;font-weight:700;color:#555;margin-top:4px">Recibido por:</div></div>
       </div>`;
   } else if(f.type==='maquinaria'){
@@ -2191,7 +2208,7 @@ function openSigPad(inputId, stateKeyExpr) {
     renderSigText();
   }
   // Set title
-  document.getElementById('sigTitle').textContent = inputId==='pEn' ? '✍️ Entregado por' : '✍️ Recibido por';
+  document.getElementById('sigTitle').textContent = inputId==='pEn' ? '✍️ Realizado por' : '✍️ Recibido por';
   openMod('sigMod');
   // Bind events after modal opens
   setTimeout(() => bindSigEvents(), 50);
