@@ -1058,20 +1058,27 @@ function goPage(p) {
 // RENDER DISPATCH
 // ══════════════════════════════════════════════════════════
 function renderDashboard(pc) {
-  const forms = visibleForms(S.forms).filter(f => f.type === 'pesas');
+  const tab = S._dashTab || 'pesas';
+  if(tab === 'pesas') renderDashPesas(pc);
+  else renderDashMaq(pc);
+}
 
-  // Group by date
+function dashTabBtn(t, label, active) {
+  return `<button onclick="S._dashTab='${t}';goPage('dashboard')"
+    style="padding:9px 22px;border:none;cursor:pointer;font-family:'Montserrat',sans-serif;font-weight:700;font-size:13px;border-bottom:3px solid ${active?'var(--g)':'transparent'};background:transparent;color:${active?'var(--g)':'var(--gray)'}">
+    ${label}
+  </button>`;
+}
+
+function renderDashPesas(pc) {
+  const forms = visibleForms(S.forms).filter(f => f.type === 'pesas');
   const byDate = {};
   forms.forEach(f => {
-    const d = f.date || f.createdAt?.substring(0,10) || 'Sin fecha';
+    const d = f.date || (f.createdAt||'').substring(0,10) || 'Sin fecha';
     if(!byDate[d]) byDate[d] = [];
     byDate[d].push(f);
   });
-
-  // Sorted dates desc
   const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
-
-  // Summary rows
   const summaryRows = dates.map(d => {
     const items = byDate[d];
     const totalCant = items.reduce((s,f) => s + (parseFloat(f.cantidadEntregada)||0), 0);
@@ -1079,96 +1086,202 @@ function renderDashboard(pc) {
     const totalNeto = items.reduce((s,f) => s + (parseFloat(f.pesoNeto)||0), 0);
     return {date:d, count:items.length, totalCant, totalQ:totalQ.toFixed(2), totalNeto:totalNeto.toFixed(0)};
   });
-
   const summaryHtml = summaryRows.map(r => `
-    <tr>
-      <td>${r.date}</td>
-      <td style="text-align:center">${r.count}</td>
-      <td style="text-align:right">${parseFloat(r.totalCant).toLocaleString()}</td>
-      <td style="text-align:right">${r.totalNeto}</td>
-      <td style="text-align:right;font-weight:800;color:var(--g)">${r.totalQ}</td>
-    </tr>`).join('');
-
-  // Detail rows
+    <tr><td>${r.date}</td><td style="text-align:center">${r.count}</td>
+    <td style="text-align:right">${parseFloat(r.totalCant).toLocaleString()}</td>
+    <td style="text-align:right">${r.totalNeto}</td>
+    <td style="text-align:right;font-weight:800;color:var(--g)">${r.totalQ}</td></tr>`).join('');
   const detailHtml = forms.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(f => `
-    <tr>
-      <td>${f.date||''}</td>
-      <td style="text-align:center;font-weight:700">#${f.consecutive}</td>
-      <td>${esc(f.maquila||f.finca||'—')}</td>
-      <td>${esc(f.fieldType||'Maquila')}</td>
-      <td style="text-align:right">${f.cantidadEntregada||0}</td>
-      <td style="text-align:right">${f.pesoNeto||0}</td>
-      <td style="text-align:right;font-weight:800;color:var(--g)">${f.pesoQuintales||0}</td>
-      ${S.user?.role==='admin' && f.precioNegociado ? `<td style="text-align:right;color:var(--gold)">₡${parseFloat(f.precioNegociado).toLocaleString()}</td><td style="text-align:right;color:var(--gold);font-weight:800">₡${parseFloat(f.totalPagar||0).toFixed(2)}</td>` : '<td>—</td><td>—</td>'}
-    </tr>`).join('');
-
-  // Totals
+    <tr><td>${f.date||''}</td>
+    <td style="text-align:center;font-weight:700">#${f.consecutive}</td>
+    <td>${esc(f.maquila||f.finca||'—')}</td>
+    <td>${esc(f.fieldType||'Maquila')}</td>
+    <td style="text-align:right">${f.cantidadEntregada||0}</td>
+    <td style="text-align:right">${f.pesoNeto||0}</td>
+    <td style="text-align:right;font-weight:800;color:var(--g)">${f.pesoQuintales||0}</td>
+    <td style="text-align:right;color:var(--gold)">${f.precioNegociado?'₡'+parseFloat(f.precioNegociado).toLocaleString():'—'}</td></tr>`).join('');
   const totCant = forms.reduce((s,f)=>s+(parseFloat(f.cantidadEntregada)||0),0);
   const totQ    = forms.reduce((s,f)=>s+(parseFloat(f.pesoQuintales)||0),0).toFixed(2);
   const totNeto = forms.reduce((s,f)=>s+(parseFloat(f.pesoNeto)||0),0);
 
   pc.innerHTML = `
   <div style="max-width:1100px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
-      <div>
-        <h2 style="font-size:20px;font-weight:900;color:var(--gd);margin:0">📊 Dashboard de Boletas</h2>
-        <div style="font-size:12px;color:var(--gray);margin-top:3px">${forms.length} boletas de Pesas registradas</div>
-      </div>
-      <button class="btn btn-primary" onclick="exportExcel()">📥 Exportar a Excel</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <h2 style="font-size:20px;font-weight:900;color:var(--gd);margin:0">📊 Dashboard</h2>
+      <button class="btn btn-primary" onclick="exportExcel()">📥 Exportar Excel</button>
     </div>
-
-    <!-- SUMMARY CARDS -->
-    <div class="srow" style="margin-bottom:24px">
+    <div style="border-bottom:2px solid var(--bdr);margin-bottom:20px;display:flex;gap:0">
+      ${dashTabBtn('pesas','🌿 Control de Pesas',true)}
+      ${dashTabBtn('maquinaria','⚙️ Maquinaria',false)}
+    </div>
+    <div class="srow" style="margin-bottom:20px">
       <div class="sc"><div class="sc-lbl">Total Boletas</div><div class="sc-val">${forms.length}</div></div>
-      <div class="sc gold"><div class="sc-lbl">Total Cantidad Entregada</div><div class="sc-val" style="font-size:20px">${totCant.toLocaleString()}</div></div>
+      <div class="sc gold"><div class="sc-lbl">Cant. Entregada Total</div><div class="sc-val" style="font-size:20px">${totCant.toLocaleString()}</div></div>
       <div class="sc"><div class="sc-lbl">Peso Neto Total (kg)</div><div class="sc-val" style="font-size:20px">${totNeto.toLocaleString()}</div></div>
       <div class="sc teal"><div class="sc-lbl">Total Quintales</div><div class="sc-val" style="font-size:22px">${totQ}</div></div>
     </div>
-
-    <!-- DAILY SUMMARY -->
     <div class="card" style="margin-bottom:20px">
       <div class="card-hd"><h3>📅 Resumen Diario</h3></div>
       <div class="card-bd" style="padding:0;overflow-x:auto">
         <table class="tbl" style="min-width:500px">
-          <thead><tr>
-            <th>Fecha</th><th style="text-align:center">Boletas</th>
-            <th style="text-align:right">Cant. Entregada</th>
-            <th style="text-align:right">Peso Neto (kg)</th>
-            <th style="text-align:right">Quintales</th>
-          </tr></thead>
-          <tbody>${summaryHtml || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--gray)">Sin datos</td></tr>'}</tbody>
-          ${summaryRows.length>0?`<tfoot><tr style="background:var(--gl);font-weight:800">
-            <td>TOTAL</td><td style="text-align:center">${forms.length}</td>
-            <td style="text-align:right">${totCant.toLocaleString()}</td>
-            <td style="text-align:right">${totNeto.toLocaleString()}</td>
-            <td style="text-align:right;color:var(--g)">${totQ}</td>
-          </tr></tfoot>`:''}
+          <thead><tr><th>Fecha</th><th style="text-align:center">Boletas</th><th style="text-align:right">Cant.</th><th style="text-align:right">Neto (kg)</th><th style="text-align:right">Quintales</th></tr></thead>
+          <tbody>${summaryHtml||'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--gray)">Sin datos</td></tr>'}</tbody>
+          ${summaryRows.length?`<tfoot><tr style="background:var(--gl);font-weight:800"><td>TOTAL</td><td style="text-align:center">${forms.length}</td><td style="text-align:right">${totCant.toLocaleString()}</td><td style="text-align:right">${totNeto.toLocaleString()}</td><td style="text-align:right;color:var(--g)">${totQ}</td></tr></tfoot>`:''}
         </table>
       </div>
     </div>
-
-    <!-- DETAIL TABLE -->
     <div class="card">
-      <div class="card-hd">
-        <h3>📋 Detalle por Boleta</h3>
-        <button class="btn btn-secondary btn-sm" onclick="exportExcel()">📥 Excel</button>
-      </div>
+      <div class="card-hd"><h3>📋 Detalle por Boleta</h3><button class="btn btn-secondary btn-sm" onclick="exportExcel()">📥 Excel</button></div>
       <div class="card-bd" style="padding:0;overflow-x:auto">
-        <table class="tbl" id="detailTbl" style="min-width:650px">
-          <thead><tr>
-            <th>Fecha</th><th>Nº</th><th>Agricultor / Maquila</th><th>Tipo</th>
-            <th style="text-align:right">Cant.</th>
-            <th style="text-align:right">Neto (kg)</th>
-            <th style="text-align:right">Quintales</th>
-            <th style="text-align:right">Precio (₡)</th>
-            <th style="text-align:right">Total (₡)</th>
-          </tr></thead>
-          <tbody>${detailHtml || '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gray)">Sin boletas registradas</td></tr>'}</tbody>
+        <table class="tbl" style="min-width:650px">
+          <thead><tr><th>Fecha</th><th>Nº</th><th>Agricultor/Maquila</th><th>Tipo</th><th style="text-align:right">Cant.</th><th style="text-align:right">Neto (kg)</th><th style="text-align:right">Quintales</th><th style="text-align:right">Precio ₡</th></tr></thead>
+          <tbody>${detailHtml||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--gray)">Sin boletas</td></tr>'}</tbody>
         </table>
       </div>
     </div>
   </div>`;
 }
+
+function renderDashMaq(pc) {
+  const forms = visibleForms(S.forms).filter(f => f.type === 'maquinaria');
+  const byDate = {};
+  forms.forEach(f => {
+    const d = f.date || (f.createdAt||'').substring(0,10) || 'Sin fecha';
+    if(!byDate[d]) byDate[d] = [];
+    byDate[d].push(f);
+  });
+  const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+
+  // Count by tipo
+  const byTipo = {};
+  forms.forEach(f => {
+    const t = f.tipo || 'Sin tipo';
+    byTipo[t] = (byTipo[t]||0) + 1;
+  });
+
+  const summaryHtml = dates.map(d => {
+    const items = byDate[d];
+    const tipos = [...new Set(items.map(f=>f.tipo||'—'))].join(', ');
+    return `<tr>
+      <td>${d}</td>
+      <td style="text-align:center">${items.length}</td>
+      <td>${tipos}</td>
+      <td>${[...new Set(items.map(f=>f.finca||''))].filter(Boolean).join(', ')||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  const detailHtml = forms.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(f=>`
+    <tr>
+      <td>${f.date||''}</td>
+      <td style="text-align:center;font-weight:700">#${f.consecutive}</td>
+      <td><span class="badge ${f.tipo==='Nuevo Ingreso'?'b-green':f.tipo==='Sin Reparación'?'b-red':'b-gold'}">${f.tipo||'—'}</span></td>
+      <td>${esc(f.finca||'—')}</td>
+      <td>${esc(f.equipo||'—')}</td>
+      <td>${esc(f.placa||'—')}</td>
+      <td>${esc(f.taller||'—')}</td>
+      <td>${esc(f.solicitante||'—')}</td>
+      <td>${esc(f.encargado||'—')}</td>
+    </tr>`).join('');
+
+  const tipoCards = Object.entries(byTipo).map(([t,n])=>`
+    <div class="sc ${t==='Nuevo Ingreso'?'teal':t==='Sin Reparación'?'':''}" style="${t==='Sin Reparación'?'border-left-color:var(--red)':''}">
+      <div class="sc-lbl">${t}</div>
+      <div class="sc-val" style="font-size:22px;${t==='Sin Reparación'?'color:var(--red)':''}">${n}</div>
+    </div>`).join('');
+
+  pc.innerHTML = `
+  <div style="max-width:1100px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <h2 style="font-size:20px;font-weight:900;color:var(--gd);margin:0">📊 Dashboard</h2>
+      <button class="btn btn-primary" onclick="exportExcelMaq()">📥 Exportar Excel</button>
+    </div>
+    <div style="border-bottom:2px solid var(--bdr);margin-bottom:20px;display:flex;gap:0">
+      ${dashTabBtn('pesas','🌿 Control de Pesas',false)}
+      ${dashTabBtn('maquinaria','⚙️ Maquinaria',true)}
+    </div>
+    <div class="srow" style="margin-bottom:20px">
+      <div class="sc"><div class="sc-lbl">Total Boletas</div><div class="sc-val">${forms.length}</div></div>
+      ${tipoCards}
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-hd"><h3>📅 Resumen Diario</h3></div>
+      <div class="card-bd" style="padding:0;overflow-x:auto">
+        <table class="tbl" style="min-width:500px">
+          <thead><tr><th>Fecha</th><th style="text-align:center">Boletas</th><th>Tipos</th><th>Departamentos</th></tr></thead>
+          <tbody>${summaryHtml||'<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--gray)">Sin datos</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><h3>📋 Detalle por Boleta</h3><button class="btn btn-secondary btn-sm" onclick="exportExcelMaq()">📥 Excel</button></div>
+      <div class="card-bd" style="padding:0;overflow-x:auto">
+        <table class="tbl" style="min-width:750px">
+          <thead><tr><th>Fecha</th><th>Nº</th><th>Tipo</th><th>Departamento</th><th>Equipo/Placa</th><th># Activo</th><th>Taller</th><th>Solicitante</th><th>Encargado</th></tr></thead>
+          <tbody>${detailHtml||'<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gray)">Sin boletas</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function exportExcelMaq() {
+  if(typeof XLSX === 'undefined'){ toast('⚠️ Librería Excel no cargada.'); return; }
+  const forms = visibleForms(S.forms).filter(f => f.type === 'maquinaria')
+                .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(!forms.length){ toast('⚠️ No hay boletas de maquinaria para exportar.'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const empresa = 'B&C Exportadores del Valle de Ujarrás';
+  const fechaExp = new Date().toLocaleDateString('es-CR',{day:'2-digit',month:'long',year:'numeric'});
+  const VERDE='1A6B3A', VERDE_CL='E8F5EE', NEGRO='1A2E1A', DORADO='C8973A', BLANCO='FFFFFF', GRIS_CL='F5F5F5', GRIS_BD='CCCCCC';
+
+  const hdr  = (v,bg=VERDE,fg=BLANCO) => ({v,t:'s',s:{font:{bold:true,sz:10,color:{rgb:fg}},fill:{patternType:'solid',fgColor:{rgb:bg}},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:{bottom:{style:'medium',color:{rgb:VERDE}}}}});
+  const cell = (v,bg=BLANCO,al='left') => ({v,t:typeof v==='number'?'n':'s',s:{fill:{patternType:'solid',fgColor:{rgb:bg}},alignment:{horizontal:al},border:{bottom:{style:'thin',color:{rgb:GRIS_BD}}}}});
+  const title = (v) => ({v,t:'s',s:{font:{bold:true,sz:14,color:{rgb:VERDE}}}});
+  const sub   = (v) => ({v,t:'s',s:{font:{sz:10,color:{rgb:'666666'}}}});
+  const tot   = (v) => ({v,t:typeof v==='number'?'n':'s',s:{font:{bold:true,sz:11,color:{rgb:VERDE}},fill:{patternType:'solid',fgColor:{rgb:VERDE_CL}},border:{top:{style:'medium',color:{rgb:VERDE}}}}});
+
+  // Summary by date
+  const byDate = {};
+  forms.forEach(f => { const d=f.date||(f.createdAt||'').substring(0,10)||'Sin fecha'; if(!byDate[d])byDate[d]=[]; byDate[d].push(f); });
+
+  const s1 = [];
+  s1.push([title(empresa),null,null,null]);
+  s1.push([sub('Reporte: Maquinaria y Equipo — '+fechaExp),null,null,null]);
+  s1.push([null,null,null,null]);
+  s1.push([hdr('FECHA'),hdr('N° BOLETAS'),hdr('TIPOS DE SERVICIO'),hdr('DEPARTAMENTOS')]);
+  Object.keys(byDate).sort((a,b)=>b.localeCompare(a)).forEach((d,i)=>{
+    const items=byDate[d], bg=i%2===0?BLANCO:GRIS_CL;
+    const tipos=[...new Set(items.map(f=>f.tipo||''))].filter(Boolean).join(', ');
+    const deptos=[...new Set(items.map(f=>f.finca||''))].filter(Boolean).join(', ');
+    s1.push([cell(d,bg,'center'),cell(items.length,bg,'center'),cell(tipos,bg),cell(deptos,bg)]);
+  });
+  s1.push([tot('TOTAL'),tot(forms.length),null,null]);
+  const ws1 = XLSX.utils.aoa_to_sheet(s1);
+  ws1['!cols']=[{wch:14},{wch:12},{wch:30},{wch:30}];
+  ws1['!merges']=[{s:{r:0,c:0},e:{r:0,c:3}},{s:{r:1,c:0},e:{r:1,c:3}}];
+  XLSX.utils.book_append_sheet(wb,ws1,'📅 Resumen Diario');
+
+  // Detail
+  const s2 = [];
+  s2.push([title(empresa),null,null,null,null,null,null,null,null]);
+  s2.push([sub('Detalle: Control de Maquinaria — '+fechaExp),null,null,null,null,null,null,null,null]);
+  s2.push([null,null,null,null,null,null,null,null,null]);
+  s2.push([hdr('FECHA'),hdr('N° BOLETA'),hdr('TIPO SERVICIO',NEGRO),hdr('DEPARTAMENTO'),hdr('EQUIPO/PLACA'),hdr('# ACTIVO'),hdr('TALLER'),hdr('SOLICITANTE'),hdr('ENCARGADO')]);
+  forms.forEach((f,i)=>{
+    const bg=i%2===0?BLANCO:VERDE_CL;
+    s2.push([cell(f.date||'',bg,'center'),cell('#'+f.consecutive,bg,'center'),cell(f.tipo||'',bg,'center'),cell(f.finca||'',bg),cell(f.equipo||'',bg),cell(f.placa||'',bg),cell(f.taller||'',bg),cell(f.solicitante||'',bg),cell(f.encargado||'',bg)]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(s2);
+  ws2['!cols']=[{wch:13},{wch:11},{wch:16},{wch:18},{wch:18},{wch:12},{wch:20},{wch:18},{wch:18}];
+  ws2['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];
+  XLSX.utils.book_append_sheet(wb,ws2,'📋 Detalle Maquinaria');
+
+  const fecha=new Date().toISOString().substring(0,10);
+  XLSX.writeFile(wb,'BYC_Maquinaria_'+fecha+'.xlsx');
+  toast('📥 Excel maquinaria exportado — '+forms.length+' boletas');
+}
+
 
 function exportExcel() {
   if(typeof XLSX === 'undefined'){ toast('⚠️ Librería Excel no cargada. Verifique conexión.'); return; }
