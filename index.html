@@ -855,7 +855,7 @@ function closeMod(id){ document.getElementById(id).classList.remove('open'); }
 function consec(type, fieldType) {
   if (type === 'pesas') {
     const isMaq = !fieldType || fieldType === 'Maquila';
-    const base = isMaq ? 4501 : 1101;
+    const base = isMaq ? 4501 : 10101;
     // Only count boletas within the new range (ignore old consecutives)
     const ex = S.forms
       .filter(f => f.type==='pesas' && ((!f.fieldType||f.fieldType==='Maquila')===isMaq))
