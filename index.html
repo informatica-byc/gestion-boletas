@@ -588,6 +588,7 @@ body{font-family:'Montserrat',sans-serif;background:#edf2ed;color:var(--dark);mi
       <div class="sb-sec">Principal</div>
       <div class="nav-item active" data-label="Centro de Boletas" data-p="home" onclick="goPage('home')"><span class="ico">🏠</span><span class="nav-label"> Centro de Boletas</span></div>
       <div class="nav-item" data-label="Recientes" data-p="recent" onclick="goPage('recent')"><span class="ico">🕐</span><span class="nav-label"> Recientes</span></div>
+        <div class="nav-item" data-p="dashboard" data-label="Dashboard" onclick="goPage('dashboard')"><span class="ico">📊</span><span class="nav-label">Dashboard</span></div>
       <div id="dynNav"></div>
       <div id="adminNav" style="display:none">
         <div class="sb-sec">Administración</div>
@@ -1270,7 +1271,8 @@ function render() {
   if (S.viewForm) { renderView(pc); return; }
   if (S.editForm) { renderEditor(pc); return; }
   if (S.page === 'home')   { renderHome(pc);   return; }
-  if (S.page === 'recent') { renderList(pc, S.forms.slice(0, 50)); return; }
+  if (S.page === 'recent') { renderList(pc, visibleForms(S.forms).slice(0, 50)); return; }
+  if (S.page === 'dashboard') { renderDashboard(pc); return; }
   if (S.page === 'ftypes') { renderFtypes(pc); return; }
   if (S.page === 'users')  { renderUsers(pc);  return; }
   if (S.page.startsWith('ft_')) { renderTypePanel(pc, S.page.slice(3)); return; }
