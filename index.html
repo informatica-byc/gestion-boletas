@@ -1064,8 +1064,19 @@ function renderDashboard(pc) {
 }
 
 function dashTabBtn(t, label, active) {
-  return `<button onclick="S._dashTab='${t}';goPage('dashboard')"
-    style="padding:9px 22px;border:none;cursor:pointer;font-family:'Montserrat',sans-serif;font-weight:700;font-size:13px;border-bottom:3px solid ${active?'var(--g)':'transparent'};background:transparent;color:${active?'var(--g)':'var(--gray)'}">
+  return `<button onclick="S._dashTab='${t}';goPage('dashboard')" style="
+    padding:11px 28px;border:none;cursor:pointer;
+    font-family:'Montserrat',sans-serif;font-weight:800;font-size:13px;
+    border-radius:${active?'10px 10px 0 0':'10px 10px 0 0'};
+    background:${active?'var(--g)':'#fff'};
+    color:${active?'#fff':'var(--gray)'};
+    border:2px solid ${active?'var(--g)':'var(--bdr)'};
+    border-bottom:${active?'2px solid var(--g)':'2px solid var(--bdr)'};
+    margin-bottom:-2px;
+    box-shadow:${active?'0 -2px 8px rgba(26,107,58,.15)':'none'};
+    transition:all .18s;
+    letter-spacing:.3px;
+  ">
     ${label}
   </button>`;
 }
@@ -1110,7 +1121,7 @@ function renderDashPesas(pc) {
       <h2 style="font-size:20px;font-weight:900;color:var(--gd);margin:0">📊 Dashboard</h2>
       <button class="btn btn-primary" onclick="exportExcel()">📥 Exportar Excel</button>
     </div>
-    <div style="border-bottom:2px solid var(--bdr);margin-bottom:20px;display:flex;gap:0">
+    <div style="border-bottom:2px solid var(--g);margin-bottom:24px;display:flex;gap:4px;align-items:flex-end">
       ${dashTabBtn('pesas','🌿 Control de Pesas',true)}
       ${dashTabBtn('maquinaria','⚙️ Maquinaria',false)}
     </div>
@@ -1195,7 +1206,7 @@ function renderDashMaq(pc) {
       <h2 style="font-size:20px;font-weight:900;color:var(--gd);margin:0">📊 Dashboard</h2>
       <button class="btn btn-primary" onclick="exportExcelMaq()">📥 Exportar Excel</button>
     </div>
-    <div style="border-bottom:2px solid var(--bdr);margin-bottom:20px;display:flex;gap:0">
+    <div style="border-bottom:2px solid var(--g);margin-bottom:24px;display:flex;gap:4px;align-items:flex-end">
       ${dashTabBtn('pesas','🌿 Control de Pesas',false)}
       ${dashTabBtn('maquinaria','⚙️ Maquinaria',true)}
     </div>
