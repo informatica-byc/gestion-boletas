@@ -525,6 +525,7 @@ body{font-family:'Montserrat',sans-serif;background:#edf2ed;color:var(--dark);mi
 @keyframes spin{to{transform:rotate(360deg)}}
 #fbLoading p{color:rgba(255,255,255,.5);font-size:13px;font-weight:600;letter-spacing:1px}
 </style>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="fbLoading">
@@ -857,11 +858,11 @@ function consec(type, fieldType) {
     const prefix = isMaq ? 'M' : 'F';
     const ex = S.forms.filter(f => f.type==='pesas' && ((!f.fieldType||f.fieldType==='Maquila')===isMaq))
                        .map(f => parseInt(f.consecutive)||0);
-    const base = isMaq ? 7512 : 8001;
+    const base = isMaq ? 4501 : 1101;
     return ex.length ? Math.max(...ex)+1 : base;
   }
   const ex = S.forms.filter(f=>f.type===type).map(f=>parseInt(f.consecutive)||0);
-  const base = type==='maquinaria' ? 7160 : 1000;
+  const base = type==='maquinaria' ? 7801 : 1000;
   return ex.length ? Math.max(...ex)+1 : base;
 }
 
@@ -1052,6 +1053,218 @@ function goPage(p) {
 // ══════════════════════════════════════════════════════════
 // RENDER DISPATCH
 // ══════════════════════════════════════════════════════════
+function renderDashboard(pc) {
+  const forms = visibleForms(S.forms).filter(f => f.type === 'pesas');
+
+  // Group by date
+  const byDate = {};
+  forms.forEach(f => {
+    const d = f.date || f.createdAt?.substring(0,10) || 'Sin fecha';
+    if(!byDate[d]) byDate[d] = [];
+    byDate[d].push(f);
+  });
+
+  // Sorted dates desc
+  const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+
+  // Summary rows
+  const summaryRows = dates.map(d => {
+    const items = byDate[d];
+    const totalCant = items.reduce((s,f) => s + (parseFloat(f.cantidadEntregada)||0), 0);
+    const totalQ    = items.reduce((s,f) => s + (parseFloat(f.pesoQuintales)||0), 0);
+    const totalNeto = items.reduce((s,f) => s + (parseFloat(f.pesoNeto)||0), 0);
+    return {date:d, count:items.length, totalCant, totalQ:totalQ.toFixed(2), totalNeto:totalNeto.toFixed(0)};
+  });
+
+  const summaryHtml = summaryRows.map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td style="text-align:center">${r.count}</td>
+      <td style="text-align:right">${parseFloat(r.totalCant).toLocaleString()}</td>
+      <td style="text-align:right">${r.totalNeto}</td>
+      <td style="text-align:right;font-weight:800;color:var(--g)">${r.totalQ}</td>
+    </tr>`).join('');
+
+  // Detail rows
+  const detailHtml = forms.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(f => `
+    <tr>
+      <td>${f.date||''}</td>
+      <td style="text-align:center;font-weight:700">#${f.consecutive}</td>
+      <td>${esc(f.maquila||f.finca||'—')}</td>
+      <td>${esc(f.fieldType||'Maquila')}</td>
+      <td style="text-align:right">${f.cantidadEntregada||0}</td>
+      <td style="text-align:right">${f.pesoNeto||0}</td>
+      <td style="text-align:right;font-weight:800;color:var(--g)">${f.pesoQuintales||0}</td>
+      ${S.user?.role==='admin' && f.precioNegociado ? `<td style="text-align:right;color:var(--gold)">₡${parseFloat(f.precioNegociado).toLocaleString()}</td><td style="text-align:right;color:var(--gold);font-weight:800">₡${parseFloat(f.totalPagar||0).toFixed(2)}</td>` : '<td>—</td><td>—</td>'}
+    </tr>`).join('');
+
+  // Totals
+  const totCant = forms.reduce((s,f)=>s+(parseFloat(f.cantidadEntregada)||0),0);
+  const totQ    = forms.reduce((s,f)=>s+(parseFloat(f.pesoQuintales)||0),0).toFixed(2);
+  const totNeto = forms.reduce((s,f)=>s+(parseFloat(f.pesoNeto)||0),0);
+
+  pc.innerHTML = `
+  <div style="max-width:1100px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="font-size:20px;font-weight:900;color:var(--gd);margin:0">📊 Dashboard de Boletas</h2>
+        <div style="font-size:12px;color:var(--gray);margin-top:3px">${forms.length} boletas de Pesas registradas</div>
+      </div>
+      <button class="btn btn-primary" onclick="exportExcel()">📥 Exportar a Excel</button>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="srow" style="margin-bottom:24px">
+      <div class="sc"><div class="sc-lbl">Total Boletas</div><div class="sc-val">${forms.length}</div></div>
+      <div class="sc gold"><div class="sc-lbl">Total Cantidad Entregada</div><div class="sc-val" style="font-size:20px">${totCant.toLocaleString()}</div></div>
+      <div class="sc"><div class="sc-lbl">Peso Neto Total (kg)</div><div class="sc-val" style="font-size:20px">${totNeto.toLocaleString()}</div></div>
+      <div class="sc teal"><div class="sc-lbl">Total Quintales</div><div class="sc-val" style="font-size:22px">${totQ}</div></div>
+    </div>
+
+    <!-- DAILY SUMMARY -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-hd"><h3>📅 Resumen Diario</h3></div>
+      <div class="card-bd" style="padding:0;overflow-x:auto">
+        <table class="tbl" style="min-width:500px">
+          <thead><tr>
+            <th>Fecha</th><th style="text-align:center">Boletas</th>
+            <th style="text-align:right">Cant. Entregada</th>
+            <th style="text-align:right">Peso Neto (kg)</th>
+            <th style="text-align:right">Quintales</th>
+          </tr></thead>
+          <tbody>${summaryHtml || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--gray)">Sin datos</td></tr>'}</tbody>
+          ${summaryRows.length>0?`<tfoot><tr style="background:var(--gl);font-weight:800">
+            <td>TOTAL</td><td style="text-align:center">${forms.length}</td>
+            <td style="text-align:right">${totCant.toLocaleString()}</td>
+            <td style="text-align:right">${totNeto.toLocaleString()}</td>
+            <td style="text-align:right;color:var(--g)">${totQ}</td>
+          </tr></tfoot>`:''}
+        </table>
+      </div>
+    </div>
+
+    <!-- DETAIL TABLE -->
+    <div class="card">
+      <div class="card-hd">
+        <h3>📋 Detalle por Boleta</h3>
+        <button class="btn btn-secondary btn-sm" onclick="exportExcel()">📥 Excel</button>
+      </div>
+      <div class="card-bd" style="padding:0;overflow-x:auto">
+        <table class="tbl" id="detailTbl" style="min-width:650px">
+          <thead><tr>
+            <th>Fecha</th><th>Nº</th><th>Agricultor / Maquila</th><th>Tipo</th>
+            <th style="text-align:right">Cant.</th>
+            <th style="text-align:right">Neto (kg)</th>
+            <th style="text-align:right">Quintales</th>
+            <th style="text-align:right">Precio (₡)</th>
+            <th style="text-align:right">Total (₡)</th>
+          </tr></thead>
+          <tbody>${detailHtml || '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gray)">Sin boletas registradas</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function exportExcel() {
+  const forms = visibleForms(S.forms).filter(f => f.type === 'pesas')
+                .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  if(!forms.length){ toast('⚠️ No hay boletas para exportar.'); return; }
+
+  // ── Sheet 1: Summary by date ──
+  const byDate = {};
+  forms.forEach(f => {
+    const d = f.date || f.createdAt?.substring(0,10) || 'Sin fecha';
+    if(!byDate[d]) byDate[d] = [];
+    byDate[d].push(f);
+  });
+  const sumData = [['Fecha','Boletas','Cantidad Entregada','Peso Neto (kg)','Quintales']];
+  Object.keys(byDate).sort((a,b)=>b.localeCompare(a)).forEach(d => {
+    const items = byDate[d];
+    sumData.push([
+      d,
+      items.length,
+      items.reduce((s,f)=>s+(parseFloat(f.cantidadEntregada)||0),0),
+      items.reduce((s,f)=>s+(parseFloat(f.pesoNeto)||0),0),
+      parseFloat(items.reduce((s,f)=>s+(parseFloat(f.pesoQuintales)||0),0).toFixed(2))
+    ]);
+  });
+  // Total row
+  sumData.push(['TOTAL',
+    forms.length,
+    forms.reduce((s,f)=>s+(parseFloat(f.cantidadEntregada)||0),0),
+    forms.reduce((s,f)=>s+(parseFloat(f.pesoNeto)||0),0),
+    parseFloat(forms.reduce((s,f)=>s+(parseFloat(f.pesoQuintales)||0),0).toFixed(2))
+  ]);
+
+  // ── Sheet 2: Detail per boleta ──
+  const detData = [['Fecha','N° Boleta','Agricultor / Maquila','Tipo','Subtype',
+    'Lugar','Cuadrilla','Transportista','Cant. Entregada',
+    'Pesas/Espacio','Peso Boleta (kg)','Promedio (kg)','Peso Total Carga (kg)',
+    'Rebajo (kg)','Peso Neto (kg)','Quintales','Precio Negociado (₡)','Total a Pagar (₡)',
+    'Observaciones','Realizado por','Recibido por']];
+  forms.forEach(f => {
+    detData.push([
+      f.date||'',
+      '#' + f.consecutive,
+      f.maquila || f.finca || '',
+      f.fieldType||'Maquila',
+      f.subtype||'',
+      f.finca||'',
+      f.cuadrilla||'',
+      f.transportista||'',
+      parseFloat(f.cantidadEntregada)||0,
+      f.pesasPorEspacio||1,
+      parseFloat(f.pesoBoleta)||0,
+      parseFloat(f.promedio)||0,
+      parseFloat(f.pesoTotalCarga)||0,
+      parseFloat(f.rebajoKg)||0,
+      parseFloat(f.pesoNeto)||0,
+      parseFloat(f.pesoQuintales)||0,
+      parseFloat(f.precioNegociado)||0,
+      parseFloat(f.totalPagar)||0,
+      f.obs||'',
+      f.entregadoPor||'',
+      f.recibidoPor||''
+    ]);
+  });
+
+  // ── Build workbook ──
+  const wb = XLSX.utils.book_new();
+
+  // Summary sheet with styling
+  const ws1 = XLSX.utils.aoa_to_sheet(sumData);
+  ws1['!cols'] = [{wch:14},{wch:10},{wch:22},{wch:18},{wch:12}];
+  // Bold header and total row
+  const range1 = XLSX.utils.decode_range(ws1['!ref']);
+  for(let C=range1.s.c; C<=range1.e.c; C++){
+    const hCell = XLSX.utils.encode_cell({r:0, c:C});
+    if(!ws1[hCell]) ws1[hCell]={v:'',t:'s'};
+    ws1[hCell].s = {font:{bold:true}, fill:{fgColor:{rgb:'1A6B3A'}}, font:{bold:true,color:{rgb:'FFFFFF'}}};
+    const tCell = XLSX.utils.encode_cell({r:range1.e.r, c:C});
+    if(ws1[tCell]) ws1[tCell].s = {font:{bold:true}, fill:{fgColor:{rgb:'E8F5EE'}}};
+  }
+  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Diario');
+
+  // Detail sheet
+  const ws2 = XLSX.utils.aoa_to_sheet(detData);
+  ws2['!cols'] = [{wch:12},{wch:10},{wch:24},{wch:14},{wch:14},{wch:18},{wch:14},{wch:16},
+    {wch:16},{wch:13},{wch:16},{wch:14},{wch:18},{wch:14},{wch:14},{wch:12},{wch:18},{wch:16},{wch:20},{wch:16},{wch:16}];
+  // Bold header
+  const range2 = XLSX.utils.decode_range(ws2['!ref']);
+  for(let C=range2.s.c; C<=range2.e.c; C++){
+    const hCell = XLSX.utils.encode_cell({r:0, c:C});
+    if(ws2[hCell]) ws2[hCell].s = {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'0F4A27'}}};
+  }
+  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle Boletas');
+
+  // Export
+  const fecha = new Date().toISOString().substring(0,10);
+  XLSX.writeFile(wb, `BYC_Boletas_${fecha}.xlsx`);
+  toast('📥 Excel exportado exitosamente');
+}
+
 function render() {
   const pc = document.getElementById('pc');
   if (S.viewForm) { renderView(pc); return; }
@@ -1281,6 +1494,9 @@ function renderPesasEd(pc, f) {
           <div class="cf"><label>Pesas por Espacio</label>
             <select id="pPE" onchange="S.editForm.pesasPorEspacio=parseInt(this.value);rP()" style="width:100%;border:none;border-bottom:1.5px solid #aaa;font-family:'Crimson Pro',serif;font-size:16px;font-weight:700;color:var(--gd);background:transparent;outline:none">${pesasOpts}</select>
           </div>
+          <div class="cf"><label>Precio Negociado (₡)</label>
+            <input id="pPN" type="number" min="0" step="0.01" value="${esc(String(f.precioNegociado||''))}" oninput="S.editForm.precioNegociado=parseFloat(this.value)||0;rP()" style="width:100%;border:none;border-bottom:1.5px solid #aaa;font-family:'Crimson Pro',serif;font-size:16px;font-weight:700;color:var(--gd);background:transparent;outline:none;padding:2px 0"/>
+          </div>
           <div class="cf"><label>Peso Boleta (kg)</label><div class="cv" id="cPT"></div></div>
           <div class="cf"><label>Promedio (kg)</label><div class="cv" id="cPR"></div></div>
           <div class="cf"><label>Peso Total Carga (kg)</label><div class="cv" id="cPTC" style="color:#0d5c30"></div></div>
@@ -1333,15 +1549,11 @@ function renderPesasEd(pc, f) {
 function recalcConsec(){
   const ft = document.getElementById('pft')?.value || 'Maquila';
   S.editForm.fieldType = ft;
-  // Solo reasignar consecutivo si es boleta NUEVA (no editando una existente guardada en Firebase)
-  const isEditing = S.forms.some(x => x.id === S.editForm?.id);
-  if(!isEditing) {
-    const newCon = consec('pesas', ft);
-    S.editForm.consecutive = newCon;
-    // Update the displayed consecutive number
-    const bnumEl = document.querySelector('.bol-nb .bnum');
-    if(bnumEl) bnumEl.innerHTML = newCon + ' <span class="bsc">SC</span>';
-  }
+  const newCon = consec('pesas', ft);
+  S.editForm.consecutive = newCon;
+  // Update the displayed consecutive number
+  const bnumEl = document.querySelector('.bol-nb .bnum');
+  if(bnumEl) bnumEl.innerHTML = newCon + ' <span class="bsc">SC</span>';
 }
 
 function rP() {
@@ -1400,13 +1612,16 @@ function rP() {
   if(g('cPQ'))  g('cPQ').textContent  = tot>0  ? quintales.toFixed(2) : '';
 
   const cb = g('cBar');
-  if(cb) cb.innerHTML = `<span>📊 <b>Boleta:</b> ${tot.toFixed(0)} kg</span><span>📈 <b>Prom/esp:</b> ${promPPE.toFixed(1)} kg</span><span>📦 <b>Total Carga:</b> ${ptc.toFixed(1)} kg</span><span>➖ <b>Rebajo:</b> ${rebKg.toFixed(1)} kg</span><span style="color:var(--g);font-weight:800">✅ <b>Neto:</b> ${neto.toFixed(0)} kg</span><span>⚖️ <b>Quintales:</b> ${quintales.toFixed(2)}</span><span>🔢 <b>Muestras:</b> ${count}</span>`;
+  const pn = parseFloat(S.editForm?.precioNegociado)||0;
+  const totalPagar = pn > 0 ? (quintales * pn).toFixed(2) : null;
+  if(S.editForm) S.editForm.totalPagar = totalPagar ? parseFloat(totalPagar) : 0;
+  if(cb) cb.innerHTML = `<span>📊 <b>Boleta:</b> ${tot.toFixed(0)} kg</span><span>📈 <b>Prom/esp:</b> ${promPPE.toFixed(1)} kg</span><span>📦 <b>Total Carga:</b> ${ptc.toFixed(1)} kg</span><span>➖ <b>Rebajo:</b> ${rebKg.toFixed(1)} kg</span><span style="color:var(--g);font-weight:800">✅ <b>Neto:</b> ${neto.toFixed(0)} kg</span><span>⚖️ <b>Quintales:</b> ${quintales.toFixed(2)}</span>${pn>0?`<span style="color:var(--gold);font-weight:800">💰 <b>Total:</b> ₡${totalPagar}</span>`:''}<span>🔢 <b>Muestras:</b> ${count}</span>`;
 }
 
 async function savePesas() {
   const f = S.editForm;
   for(let r=0;r<15;r++) for(let col=0;col<5;col++){const i=document.getElementById(`w${r}_${col}`);if(i)f.weights[r][col]=i.value;}
-  const map={pMq:'maquila',pDt:'date',pFi:'finca',pCa:'cantidadEntregada',pOb:'obs',pEn:'entregadoPor',pRe:'recibidoPor',pCu:'cuadrilla',pTr:'transportista'};
+  const map={pMq:'maquila',pDt:'date',pFi:'finca',pCa:'cantidadEntregada',pOb:'obs',pEn:'entregadoPor',pRe:'recibidoPor',pCu:'cuadrilla',pTr:'transportista',pPN:'precioNegociado'};
   Object.entries(map).forEach(([id,k])=>{const e=document.getElementById(id);if(e)f[k]=e.value;});
   const ft=document.getElementById('pft'); if(ft)f.fieldType=ft.value;
   const ss=document.querySelector('.bol-tc select'); if(ss)f.subtype=ss.value;
@@ -1585,6 +1800,8 @@ function renderPesasV(pc,f){
         <div class="cf"><label>${rebajoLbl}</label><div class="cv">${f.rebajoKg||''} kg</div></div>
         <div class="cf"><label>Peso Neto (kg)</label><div class="cv" style="color:var(--g);font-weight:900;font-size:17px">${f.pesoNeto||''}</div></div>
         <div class="cf"><label>Peso Quintales</label><div class="cv" style="color:#0d5c30;font-weight:700">${f.pesoQuintales||''}</div></div>
+        ${f.precioNegociado?`<div class="cf"><label>Precio Negociado (₡)</label><div class="cv" style="color:var(--gold);font-weight:700">₡${f.precioNegociado}</div></div>`:''}
+        ${f.totalPagar?`<div class="cf"><label>Total a Pagar (₡)</label><div class="cv" style="color:var(--gold);font-weight:900;font-size:16px">₡${parseFloat(f.totalPagar).toFixed(2)}</div></div>`:''}
       </div>
     </div>
     <div class="bol-obs"><label>Observaciones:</label><span class="ro">${esc(f.obs||'')}</span></div>
@@ -2017,7 +2234,6 @@ function editById(id){
   } else {
     weights = weights.map(r=>Array.isArray(r)?[...r]:Array(5).fill(''));
   }
-  S.viewForm = null; // Limpiar vista antes de abrir editor
   S.editForm = {...f, weights};
   render();
 }
