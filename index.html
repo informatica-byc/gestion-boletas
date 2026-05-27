@@ -1799,16 +1799,16 @@ function rP() {
     promTotal: prom.toFixed(1),
     pesoTotalCarga: ptc.toFixed(1),
     rebajoKg: rebKg.toFixed(1),
-    pesoNeto: neto.toFixed(0),
+    pesoNeto: neto.toFixed(2),
     pesoQuintales: quintales.toFixed(2),
   });
 
   const g = id => document.getElementById(id);
-  if(g('cPT'))  g('cPT').textContent  = tot>0 ? tot.toFixed(0)   : '';
-  if(g('cPR'))  g('cPR').textContent  = count ? promPPE.toFixed(1): '';
-  if(g('cPTC')) g('cPTC').textContent = cant>0 ? ptc.toFixed(1)   : '';
+  if(g('cPT'))  g('cPT').textContent  = tot>0 ? tot.toFixed(0)    : '';
+  if(g('cPR'))  g('cPR').textContent  = count ? promPPE.toFixed(1) : '';
+  if(g('cPTC')) g('cPTC').textContent = cant>0 ? ptc.toFixed(1)    : '';
   if(g('cRK'))  g('cRK').textContent  = tot>0  ? rebKg.toFixed(1)+' kg' : '';
-  if(g('cPN'))  g('cPN').textContent  = tot>0  ? neto.toFixed(0)  : '';
+  if(g('cPN'))  g('cPN').textContent  = tot>0  ? neto.toFixed(2)   : '';
   if(g('cPQ'))  g('cPQ').textContent  = tot>0  ? quintales.toFixed(2) : '';
 
   const cb = g('cBar');
