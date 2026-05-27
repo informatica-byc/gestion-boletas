@@ -853,17 +853,20 @@ function openMod(id) { document.getElementById(id).classList.add('open'); }
 function closeMod(id){ document.getElementById(id).classList.remove('open'); }
 
 function consec(type, fieldType) {
-  // Pesas: separate sequences for Maquila vs Finca/Agricultor
   if (type === 'pesas') {
     const isMaq = !fieldType || fieldType === 'Maquila';
-    const prefix = isMaq ? 'M' : 'F';
-    const ex = S.forms.filter(f => f.type==='pesas' && ((!f.fieldType||f.fieldType==='Maquila')===isMaq))
-                       .map(f => parseInt(f.consecutive)||0);
     const base = isMaq ? 4501 : 1101;
+    // Only count boletas within the new range (ignore old consecutives)
+    const ex = S.forms
+      .filter(f => f.type==='pesas' && ((!f.fieldType||f.fieldType==='Maquila')===isMaq))
+      .map(f => parseInt(f.consecutive)||0)
+      .filter(n => n >= base);
     return ex.length ? Math.max(...ex)+1 : base;
   }
-  const ex = S.forms.filter(f=>f.type===type).map(f=>parseInt(f.consecutive)||0);
   const base = type==='maquinaria' ? 7801 : 1000;
+  const ex = S.forms.filter(f=>f.type===type)
+    .map(f=>parseInt(f.consecutive)||0)
+    .filter(n => n >= base);
   return ex.length ? Math.max(...ex)+1 : base;
 }
 
@@ -1168,103 +1171,174 @@ function renderDashboard(pc) {
 }
 
 function exportExcel() {
+  if(typeof XLSX === 'undefined'){ toast('⚠️ Librería Excel no cargada. Verifique conexión.'); return; }
   const forms = visibleForms(S.forms).filter(f => f.type === 'pesas')
                 .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-
   if(!forms.length){ toast('⚠️ No hay boletas para exportar.'); return; }
 
-  // ── Sheet 1: Summary by date ──
+  const wb = XLSX.utils.book_new();
+  const empresa = 'B&C Exportadores del Valle de Ujarrás';
+  const fechaExp = new Date().toLocaleDateString('es-CR',{day:'2-digit',month:'long',year:'numeric'});
+
+  // ── Colores corporativos ──
+  const VERDE    = '1A6B3A';
+  const VERDE_CL = 'E8F5EE';
+  const VERDE_MD = 'D1EAD9';
+  const DORADO   = 'C8973A';
+  const BLANCO   = 'FFFFFF';
+  const GRIS_CL  = 'F5F5F5';
+  const GRIS_BD  = 'CCCCCC';
+  const NEGRO    = '1A2E1A';
+
+  const bold   = (v,sz=11,color=NEGRO) => ({v, t:'s', s:{font:{bold:true,sz,color:{rgb:color}}}});
+  const hdr    = (v,bg=VERDE,fg=BLANCO,sz=10) => ({v, t:'s', s:{font:{bold:true,sz,color:{rgb:fg}},fill:{patternType:'solid',fgColor:{rgb:bg}},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:{bottom:{style:'medium',color:{rgb:VERDE}}}}});
+  const cell   = (v,bg=BLANCO,fmt,al='left') => ({v, t: typeof v==='number'?'n':'s', s:{fill:{patternType:'solid',fgColor:{rgb:bg}},alignment:{horizontal:al},border:{bottom:{style:'thin',color:{rgb:GRIS_BD}},right:{style:'thin',color:{rgb:GRIS_BD}}}}, z: fmt||undefined});
+  const num    = (v,bg=BLANCO,fmt='#,##0.00') => cell(parseFloat(v)||0, bg, fmt, 'right');
+  const title  = (v) => ({v, t:'s', s:{font:{bold:true,sz:14,color:{rgb:VERDE}},alignment:{horizontal:'left'}}});
+  const sub    = (v) => ({v, t:'s', s:{font:{sz:10,color:{rgb:'666666'}},alignment:{horizontal:'left'}}});
+  const tot    = (v,fmt='#,##0.00') => ({v: parseFloat(v)||0, t:'n', s:{font:{bold:true,sz:11,color:{rgb:VERDE}},fill:{patternType:'solid',fgColor:{rgb:VERDE_MD}},alignment:{horizontal:'right'},border:{top:{style:'medium',color:{rgb:VERDE}}}}, z:fmt});
+
+  // ════════════════════════════════════════
+  // HOJA 1: RESUMEN DIARIO
+  // ════════════════════════════════════════
   const byDate = {};
   forms.forEach(f => {
-    const d = f.date || f.createdAt?.substring(0,10) || 'Sin fecha';
+    const d = f.date || (f.createdAt||'').substring(0,10) || 'Sin fecha';
     if(!byDate[d]) byDate[d] = [];
     byDate[d].push(f);
   });
-  const sumData = [['Fecha','Boletas','Cantidad Entregada','Peso Neto (kg)','Quintales']];
-  Object.keys(byDate).sort((a,b)=>b.localeCompare(a)).forEach(d => {
-    const items = byDate[d];
-    sumData.push([
-      d,
-      items.length,
-      items.reduce((s,f)=>s+(parseFloat(f.cantidadEntregada)||0),0),
-      items.reduce((s,f)=>s+(parseFloat(f.pesoNeto)||0),0),
-      parseFloat(items.reduce((s,f)=>s+(parseFloat(f.pesoQuintales)||0),0).toFixed(2))
-    ]);
-  });
-  // Total row
-  sumData.push(['TOTAL',
-    forms.length,
-    forms.reduce((s,f)=>s+(parseFloat(f.cantidadEntregada)||0),0),
-    forms.reduce((s,f)=>s+(parseFloat(f.pesoNeto)||0),0),
-    parseFloat(forms.reduce((s,f)=>s+(parseFloat(f.pesoQuintales)||0),0).toFixed(2))
+  const dates = Object.keys(byDate).sort((a,b)=>b.localeCompare(a));
+
+  const s1 = [];
+  // Header
+  s1.push([title(empresa), null, null, null, null]);
+  s1.push([sub('Reporte: Resumen Diario de Boletas Control de Pesas'), null, null, null, null]);
+  s1.push([sub('Generado: ' + fechaExp + '   |   Total boletas: ' + forms.length), null, null, null, null]);
+  s1.push([null,null,null,null,null]);
+  s1.push([
+    hdr('FECHA',          VERDE, BLANCO, 11),
+    hdr('N° BOLETAS',     VERDE, BLANCO, 11),
+    hdr('CANT. ENTREGADA',VERDE, BLANCO, 11),
+    hdr('PESO NETO (kg)', VERDE, BLANCO, 11),
+    hdr('QUINTALES',      VERDE, BLANCO, 11),
   ]);
 
-  // ── Sheet 2: Detail per boleta ──
-  const detData = [['Fecha','N° Boleta','Agricultor / Maquila','Tipo','Subtype',
-    'Lugar','Cuadrilla','Transportista','Cant. Entregada',
-    'Pesas/Espacio','Peso Boleta (kg)','Promedio (kg)','Peso Total Carga (kg)',
-    'Rebajo (kg)','Peso Neto (kg)','Quintales','Precio Negociado (₡)','Total a Pagar (₡)',
-    'Observaciones','Realizado por','Recibido por']];
-  forms.forEach(f => {
-    detData.push([
-      f.date||'',
-      '#' + f.consecutive,
-      f.maquila || f.finca || '',
-      f.fieldType||'Maquila',
-      f.subtype||'',
-      f.finca||'',
-      f.cuadrilla||'',
-      f.transportista||'',
-      parseFloat(f.cantidadEntregada)||0,
-      f.pesasPorEspacio||1,
-      parseFloat(f.pesoBoleta)||0,
-      parseFloat(f.promedio)||0,
-      parseFloat(f.pesoTotalCarga)||0,
-      parseFloat(f.rebajoKg)||0,
-      parseFloat(f.pesoNeto)||0,
-      parseFloat(f.pesoQuintales)||0,
-      parseFloat(f.precioNegociado)||0,
-      parseFloat(f.totalPagar)||0,
-      f.obs||'',
-      f.entregadoPor||'',
-      f.recibidoPor||''
+  dates.forEach((d,i) => {
+    const items = byDate[d];
+    const bg = i%2===0 ? BLANCO : GRIS_CL;
+    const cant = items.reduce((s,f)=>s+(parseFloat(f.cantidadEntregada)||0),0);
+    const neto = items.reduce((s,f)=>s+(parseFloat(f.pesoNeto)||0),0);
+    const qnt  = items.reduce((s,f)=>s+(parseFloat(f.pesoQuintales)||0),0);
+    s1.push([
+      cell(d, bg, null, 'center'),
+      cell(items.length, bg, null, 'center'),
+      num(cant, bg, '#,##0'),
+      num(neto, bg, '#,##0'),
+      num(qnt,  bg, '#,##0.00'),
     ]);
   });
 
-  // ── Build workbook ──
-  const wb = XLSX.utils.book_new();
+  // Total row
+  const tCant = forms.reduce((s,f)=>s+(parseFloat(f.cantidadEntregada)||0),0);
+  const tNeto = forms.reduce((s,f)=>s+(parseFloat(f.pesoNeto)||0),0);
+  const tQnt  = forms.reduce((s,f)=>s+(parseFloat(f.pesoQuintales)||0),0);
+  s1.push([null,null,null,null,null]);
+  s1.push([
+    tot('TOTALES GENERALES', null),
+    tot(forms.length, '#,##0'),
+    tot(tCant, '#,##0'),
+    tot(tNeto, '#,##0'),
+    tot(tQnt,  '#,##0.00'),
+  ]);
 
-  // Summary sheet with styling
-  const ws1 = XLSX.utils.aoa_to_sheet(sumData);
-  ws1['!cols'] = [{wch:14},{wch:10},{wch:22},{wch:18},{wch:12}];
-  // Bold header and total row
-  const range1 = XLSX.utils.decode_range(ws1['!ref']);
-  for(let C=range1.s.c; C<=range1.e.c; C++){
-    const hCell = XLSX.utils.encode_cell({r:0, c:C});
-    if(!ws1[hCell]) ws1[hCell]={v:'',t:'s'};
-    ws1[hCell].s = {font:{bold:true}, fill:{fgColor:{rgb:'1A6B3A'}}, font:{bold:true,color:{rgb:'FFFFFF'}}};
-    const tCell = XLSX.utils.encode_cell({r:range1.e.r, c:C});
-    if(ws1[tCell]) ws1[tCell].s = {font:{bold:true}, fill:{fgColor:{rgb:'E8F5EE'}}};
-  }
-  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Diario');
+  const ws1 = XLSX.utils.aoa_to_sheet(s1);
+  ws1['!cols'] = [{wch:16},{wch:14},{wch:20},{wch:18},{wch:16}];
+  ws1['!rows'] = [{hpt:20},{hpt:16},{hpt:16},{hpt:8},{hpt:22}];
+  ws1['!merges'] = [
+    {s:{r:0,c:0},e:{r:0,c:4}},
+    {s:{r:1,c:0},e:{r:1,c:4}},
+    {s:{r:2,c:0},e:{r:2,c:4}},
+  ];
+  XLSX.utils.book_append_sheet(wb, ws1, '📅 Resumen Diario');
 
-  // Detail sheet
-  const ws2 = XLSX.utils.aoa_to_sheet(detData);
-  ws2['!cols'] = [{wch:12},{wch:10},{wch:24},{wch:14},{wch:14},{wch:18},{wch:14},{wch:16},
-    {wch:16},{wch:13},{wch:16},{wch:14},{wch:18},{wch:14},{wch:14},{wch:12},{wch:18},{wch:16},{wch:20},{wch:16},{wch:16}];
-  // Bold header
-  const range2 = XLSX.utils.decode_range(ws2['!ref']);
-  for(let C=range2.s.c; C<=range2.e.c; C++){
-    const hCell = XLSX.utils.encode_cell({r:0, c:C});
-    if(ws2[hCell]) ws2[hCell].s = {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'0F4A27'}}};
-  }
-  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle Boletas');
+  // ════════════════════════════════════════
+  // HOJA 2: DETALLE POR BOLETA
+  // ════════════════════════════════════════
+  const s2 = [];
+  s2.push([title(empresa), null,null,null,null,null,null,null,null,null]);
+  s2.push([sub('Reporte: Detalle de Boletas Control de Pesas — ' + fechaExp), null,null,null,null,null,null,null,null,null]);
+  s2.push([null,null,null,null,null,null,null,null,null,null]);
+  s2.push([
+    hdr('FECHA',           NEGRO, BLANCO),
+    hdr('N° BOLETA',       NEGRO, BLANCO),
+    hdr('AGRICULTOR/MAQUILA', NEGRO, BLANCO),
+    hdr('TIPO',            NEGRO, BLANCO),
+    hdr('LUGAR',           NEGRO, BLANCO),
+    hdr('CUADRILLA',       NEGRO, BLANCO),
+    hdr('TRANSPORTISTA',   NEGRO, BLANCO),
+    hdr('CANT. ENTREGADA', NEGRO, BLANCO),
+    hdr('PESO BOLETA',     NEGRO, BLANCO),
+    hdr('PROMEDIO',        NEGRO, BLANCO),
+    hdr('TOTAL CARGA',     NEGRO, BLANCO),
+    hdr('REBAJO kg',       NEGRO, BLANCO),
+    hdr('PESO NETO kg',    VERDE, BLANCO),
+    hdr('QUINTALES',       VERDE, BLANCO),
+    hdr('PRECIO ₡',        DORADO, BLANCO),
+    hdr('TOTAL ₡',         DORADO, BLANCO),
+  ]);
+
+  forms.forEach((f,i) => {
+    const bg = i%2===0 ? BLANCO : VERDE_CL;
+    s2.push([
+      cell(f.date||'',                           bg, null, 'center'),
+      cell('#'+f.consecutive,                    bg, null, 'center'),
+      cell(f.maquila||f.finca||'',               bg),
+      cell(f.fieldType||'Maquila',               bg, null, 'center'),
+      cell(f.finca||'',                          bg),
+      cell(f.cuadrilla||'',                      bg),
+      cell(f.transportista||'',                  bg),
+      num(f.cantidadEntregada||0,                bg, '#,##0'),
+      num(f.pesoBoleta||0,                       bg, '#,##0.0'),
+      num(f.promedio||0,                         bg, '#,##0.0'),
+      num(f.pesoTotalCarga||0,                   bg, '#,##0.0'),
+      num(f.rebajoKg||0,                         bg, '#,##0.0'),
+      ({...num(f.pesoNeto||0, i%2===0?VERDE_CL:VERDE_MD, '#,##0.0'), s:{...num(f.pesoNeto||0,'','').s, font:{bold:true,color:{rgb:VERDE}}}}),
+      ({...num(f.pesoQuintales||0, i%2===0?VERDE_CL:VERDE_MD, '#,##0.00'), s:{...num(f.pesoQuintales||0,'','').s, font:{bold:true,color:{rgb:VERDE}}}}),
+      num(f.precioNegociado||0,                  bg, '₡#,##0.00'),
+      num(f.totalPagar||0,                       i%2===0?'FFF8EC':'FFF0D0', '₡#,##0.00'),
+    ]);
+  });
+
+  // Total row detail
+  s2.push([null,null,null,null,null,null,null,
+    tot(tCant,'#,##0'),
+    tot(forms.reduce((s,f)=>s+(parseFloat(f.pesoBoleta)||0),0),'#,##0.0'),
+    null,
+    tot(forms.reduce((s,f)=>s+(parseFloat(f.pesoTotalCarga)||0),0),'#,##0.0'),
+    tot(forms.reduce((s,f)=>s+(parseFloat(f.rebajoKg)||0),0),'#,##0.0'),
+    tot(tNeto,'#,##0.0'),
+    tot(tQnt,'#,##0.00'),
+    null,
+    tot(forms.reduce((s,f)=>s+(parseFloat(f.totalPagar)||0),0),'₡#,##0.00'),
+  ]);
+
+  const ws2 = XLSX.utils.aoa_to_sheet(s2);
+  ws2['!cols'] = [
+    {wch:13},{wch:10},{wch:24},{wch:13},{wch:18},{wch:14},{wch:16},
+    {wch:14},{wch:13},{wch:12},{wch:13},{wch:12},{wch:13},{wch:12},{wch:14},{wch:14}
+  ];
+  ws2['!merges'] = [
+    {s:{r:0,c:0},e:{r:0,c:9}},
+    {s:{r:1,c:0},e:{r:1,c:9}},
+  ];
+  XLSX.utils.book_append_sheet(wb, ws2, '📋 Detalle Boletas');
 
   // Export
   const fecha = new Date().toISOString().substring(0,10);
-  XLSX.writeFile(wb, `BYC_Boletas_${fecha}.xlsx`);
-  toast('📥 Excel exportado exitosamente');
+  XLSX.writeFile(wb, 'BYC_Boletas_' + fecha + '.xlsx');
+  toast('📥 Excel exportado — ' + forms.length + ' boletas');
 }
+
 
 function render() {
   const pc = document.getElementById('pc');
