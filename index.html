@@ -909,7 +909,7 @@ function today(){ const d=new Date(); return `${pad(d.getDate())}-${pad(d.getMon
 function pad(n) { return String(n).padStart(2,'0'); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function toast(m,t=2800){ const el=document.getElementById('toast'); el.textContent=m; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),t); }
-function openMod(id) { document.getElementById(id).classList.add('open'); }
+function openMod(id) { if(isMobile() && _sidebarOpen) closeSbMobile(); document.getElementById(id).classList.add('open'); }
 function closeMod(id){ document.getElementById(id).classList.remove('open'); }
 
 function consec(type, fieldType) {
@@ -1106,6 +1106,7 @@ const TITLES = {home:'Centro de Boletas', recent:'Boletas Recientes', ftypes:'Ti
 
 function goPage(p) {
   S.page = p; S.editForm = null; S.viewForm = null;
+  if(isMobile() && _sidebarOpen) closeSbMobile();
   const ft = p.startsWith('ft_') ? getType(p.slice(3)) : null;
   document.getElementById('tbTitle').textContent = TITLES[p] || (ft ? ft.name : '');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.p === p));
@@ -2677,6 +2678,7 @@ function sendEmail(){
 }
 
 function newBoletaCtx(){
+  if(isMobile()) closeSbMobile();
   if(S.page && S.page.startsWith('ft_')){
     newOfType(S.page.slice(3));
   } else if(S.page === 'pesas'){
