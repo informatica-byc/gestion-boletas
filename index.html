@@ -79,7 +79,18 @@ body{font-family:'Montserrat',sans-serif;background:#edf2ed;color:var(--dark);mi
   transition:width .28s cubic-bezier(.4,0,.2,1);
   overflow:hidden;
 }
-.sidebar.collapsed{width:var(--sw-col)}
+/* Allow scroll inside sidebar on mobile */
+@media(max-width:768px){
+  .sidebar.open {
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .sidebar.open .sb-nav {
+    overflow:visible;
+    flex:unset;
+  }
+}
+.sidebar.collapsed{width:var(--sw-col);overflow:hidden}
 
 /* Logo area */
 .sb-logo{
@@ -583,6 +594,58 @@ body{font-family:'Montserrat',sans-serif;background:#edf2ed;color:var(--dark);mi
   #sbCloseBtn { display: none !important; }
 }
 
+
+/* ── COLLAPSED SIDEBAR ICONS (Desktop) ── */
+@media(min-width:769px){
+  .sidebar.collapsed{
+    width:var(--sw-col) !important;
+    transform:none !important;
+    overflow:hidden !important;
+  }
+  .sidebar.collapsed .sb-logo img{
+    height:34px !important;
+    max-width:34px !important;
+    object-fit:cover !important;
+    object-position:left center !important;
+  }
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .sb-uinfo,
+  .sidebar.collapsed .sb-logo-text,
+  .sidebar.collapsed .sb-logout-txt,
+  .sidebar.collapsed .sb-sec{
+    display:none !important;
+  }
+  .sidebar.collapsed .nav-item{
+    padding:11px 0 !important;
+    justify-content:center !important;
+    margin:2px 4px !important;
+    border-radius:8px !important;
+  }
+  .sidebar.collapsed .nav-item .ico{
+    font-size:20px !important;
+    width:auto !important;
+    text-align:center !important;
+  }
+  .sidebar.collapsed .sb-logo{
+    justify-content:center !important;
+    padding:14px 0 !important;
+  }
+  .sidebar.collapsed .sb-user{
+    justify-content:center !important;
+    padding:10px 0 !important;
+  }
+  .sidebar.collapsed .sb-foot{
+    padding:10px 4px !important;
+  }
+  .sidebar.collapsed .sb-logout{
+    justify-content:center !important;
+    padding:10px 0 !important;
+    width:100% !important;
+    border:none !important;
+    background:transparent !important;
+  }
+  .sidebar.collapsed .sb-logout .ico{ font-size:18px !important; }
+}
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
